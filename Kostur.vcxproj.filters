@@ -50,5 +50,11 @@
     <None Include="character.vert">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="lift.frag">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="lift.vert">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
