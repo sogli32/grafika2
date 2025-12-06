@@ -10,8 +10,18 @@ std::vector<int> floorQueue;   // lista selektovanih spratova (0..7)
 
 const float FLOOR_H = 0.25f; // visina sprata
 const int   FLOOR_COUNT = 8;
+bool facingLeft = false;
+
 // LOOK queue — oznaka spratova koje treba posetiti
 bool floorRequested[FLOOR_COUNT] = { false };
+
+GLFWcursor* ventCursorBlack = nullptr;
+GLFWcursor* ventCursorColor = nullptr;
+GLFWcursor* defaultCursor = nullptr;
+
+bool ventilationOn = false;
+bool cursorLocked = false;
+
 
 // Smer lifta: 1 nagore, -1 nadole
 int liftDirection = 1;
@@ -119,6 +129,12 @@ int main()
         return endProgram("Prozor nije uspeo da se kreira.");
 
     glfwMakeContextCurrent(window);
+
+    defaultCursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+
+    ventCursorBlack = loadImageToCursor("Resources/ventMali.png");
+    ventCursorColor = loadImageToCursor("Resources/vent_selMali.png");
+
 
     if (glewInit() != GLEW_OK)
         return endProgram("GLEW nije uspeo da se inicijalizuje.");
@@ -262,6 +278,7 @@ int main()
     // LOAD TEXTURES NORMAL + SELECTED
     // ---------------------------------------------------------
     unsigned int characterTex = 0;
+    unsigned int characterLeftTex = 0;
 
     const int TEX_COUNT = 12;
     unsigned int textures[TEX_COUNT] = {};
@@ -269,6 +286,8 @@ int main()
 
     // normalne
     preprocessTexture(characterTex, "Resources/character.png");
+    preprocessTexture(characterLeftTex, "Resources/character_left.png");
+
     preprocessTexture(textures[7], "Resources/PR.png");
     preprocessTexture(textures[6], "Resources/SU.png");
     preprocessTexture(textures[4], "Resources/one.png");
@@ -381,8 +400,16 @@ int main()
         // INPUT – osoba levo/desno
         // --------------------------------
         float speed = 0.001f;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) uX -= speed;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) uX += speed;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+            uX -= speed;
+            facingLeft = true;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+            uX += speed;
+            facingLeft = false;
+        }
+
 
         // --------------------------------
         // 1) LIFT KRETANJE
@@ -393,6 +420,15 @@ int main()
             {
                 liftY = liftTargetY;
                 liftMoving = false;
+                // Ako je ventilacija uključena → isključi je kad lift stigne
+                if (cursorLocked)
+                {
+                    ventilationOn = false;
+                    cursorLocked = false;
+
+                    glfwSetCursor(window, ventCursorBlack); // vrati crni propeler
+                }
+
 
                 // Stigli → resetuj zahtev za ovaj sprat
                 floorRequested[liftFloor] = false;
@@ -454,23 +490,28 @@ int main()
                 uX = 0.85f - personX; // blokiraj izlazak
             }
         }
-
         // 8) ograničenje kretanja osobe
-        float maxX = personHasEnteredLift ? 1.0f : 0.80f;
-        if (realX < 0.0f) uX = -personX;
-        if (realX > maxX) uX = maxX - personX;
+        float minX = 0.05f;                             // ✔ pomerena ivica udesno
+        float maxX = personHasEnteredLift ? 0.95f : 0.80f;
+
+        if (realX < minX)
+            uX = minX - personX;
+
+        if (realX > maxX)
+            uX = maxX - personX;
+
+        // recompute
         realX = personX + uX;
 
-        // --------------------------------
+
         // 9) POZIV LIFTA spolja (C)
-        // --------------------------------
         if (!personHasEnteredLift &&
             realX >= 0.79f &&
-            glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS &&
-            !doorOpen && !doorOpening && !doorClosing)
+            glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
         {
-            floorRequested[personFloor] = true;
+            floorRequested[personFloor] = true;   // registruj poziv
         }
+
 
         // 10) VRATA – animacija
         if (doorOpening)
@@ -606,6 +647,14 @@ int main()
                             floorRequested[f - 1] = true;
                         }
 
+                        // VENT dugme = idx 9
+                        if (idx == 9 && personHasEnteredLift)
+                        {
+                            ventilationOn = true;
+                            cursorLocked = true;
+                        }
+
+
                         // OPEN dugme = idx 10
                         if (idx == 10)
                         {
@@ -737,8 +786,22 @@ int main()
 
     glBindVertexArray(quadVAO);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, characterTex);
+    if (facingLeft)
+        glBindTexture(GL_TEXTURE_2D, characterLeftTex);
+    else
+        glBindTexture(GL_TEXTURE_2D, characterTex);
+
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    if (cursorLocked && ventilationOn && ventCursorColor)
+    {
+        glfwSetCursor(window, ventCursorColor);
+    }
+    else
+    {
+        glfwSetCursor(window, ventCursorBlack); // ← Umesto ventCursorBlack
+    }
+
 
     glfwSwapBuffers(window);
     glfwPollEvents();
