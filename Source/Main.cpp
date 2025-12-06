@@ -182,10 +182,10 @@ int main()
     };
 
     float liftVerts[] = {
-    0.85f, -0.75f,   // gore-levo
-    0.85f, -1.0f,    // dole-levo
-    1.0f,  -1.0f,    // dole-desno
-    1.0f,  -0.75f    // gore-desno
+    0.85f, -0.25f,   // gore-levo
+    0.85f, -0.5f,    // dole-levo
+    1.0f,  -0.5f,    // dole-desno
+    1.0f,  -0.25f    // gore-desno
     };
 
     // ---------------------------------------------------------
@@ -262,7 +262,7 @@ int main()
 
     // Character pozicija:
     float personX = 0.2f;   // slobodno menjaj kasnije
-    float personY = -0.88f; // dno ekrana
+    float personY = -0.63f; // dno ekrana
 
     float personW = 0.15f;
     float personH = 0.25f;
@@ -270,17 +270,17 @@ int main()
     float uX = 0.0f;
     float uY = 0.0f;
 
-
     float colors[8][3] = {
-        {0.20f, 0.20f, 0.20f},   // tamna siva
-        {0.25f, 0.25f, 0.25f},
-        {0.30f, 0.30f, 0.30f},
-        {0.35f, 0.35f, 0.35f},
-        {0.40f, 0.40f, 0.40f},
-        {0.45f, 0.45f, 0.45f},
-        {0.50f, 0.50f, 0.50f},
-        {0.55f, 0.55f, 0.55f}    // svetlija siva
+        {0.90f, 0.80f, 0.30f}, // Pikachu žuta (svetla)
+        {0.88f, 0.65f, 0.28f}, // toplija žuto-narandžasta
+        {0.85f, 0.50f, 0.25f}, // pastel narandžasta
+        {0.80f, 0.40f, 0.30f}, // narandžasto-crvena
+        {0.75f, 0.30f, 0.30f}, // lagana crvena
+        {0.70f, 0.25f, 0.28f}, // dublja crvena
+        {0.60f, 0.20f, 0.25f}, // tamna crveno-vinska
+        {0.50f, 0.15f, 0.22f}  // tamna bordo (najniži sprat)
     };
+
 
 
    
