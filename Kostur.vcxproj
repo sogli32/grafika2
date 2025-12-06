@@ -136,6 +136,8 @@
     <None Include="character.vert" />
     <None Include="color.frag" />
     <None Include="color.vert" />
+    <None Include="lift.frag" />
+    <None Include="lift.vert" />
     <None Include="packages.config" />
     <None Include="texture.frag" />
     <None Include="texture.vert" />

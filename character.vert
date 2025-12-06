@@ -2,6 +2,8 @@
 
 layout (location = 0) in vec2 aPos;
 layout (location = 1) in vec2 aTex;
+uniform float uLiftOffsetY;
+
 
 out vec2 TexCoord;
 
@@ -13,6 +15,7 @@ void main()
 {
     vec2 scaled = aPos * uScale;
     vec2 world  = scaled + uCenter + uOffset;
+    world.y += uLiftOffsetY;
 
     gl_Position = vec4(world, 0.0, 1.0);
     TexCoord = aTex;

@@ -3,10 +3,59 @@
 
 #include "../Header/Util.h"
 #include <cstdio>
+#include <vector>
+#include <algorithm>
+
+std::vector<int> floorQueue;   // lista selektovanih spratova (0..7)
+
+const float FLOOR_H = 0.25f; // visina sprata
+const int   FLOOR_COUNT = 8;
+// LOOK queue — oznaka spratova koje treba posetiti
+bool floorRequested[FLOOR_COUNT] = { false };
+
+// Smer lifta: 1 nagore, -1 nadole
+int liftDirection = 1;
+bool extendedOnce = false;
 
 
 int selectedIndex = -1;
 bool mouseWasDown = false; // bolja detekcija klika
+bool personInLift = false;
+bool personHasEnteredLift = false;
+int getNextFloorLOOK(int currentFloor, int& dir)
+{
+    // 1) pokušaj da nadješ sprat u smeru kretanja
+    if (dir == 1)
+    {
+        for (int f = currentFloor + 1; f < FLOOR_COUNT; f++)
+            if (floorRequested[f])
+                return f;
+
+        // nema ništa nagore → obrni smer
+        dir = -1;
+
+        for (int f = currentFloor - 1; f >= 0; f--)
+            if (floorRequested[f])
+                return f;
+    }
+    else // dir == -1
+    {
+        for (int f = currentFloor - 1; f >= 0; f--)
+            if (floorRequested[f])
+                return f;
+
+        // nema ništa nadole → obrni smer
+        dir = 1;
+
+        for (int f = currentFloor + 1; f < FLOOR_COUNT; f++)
+            if (floorRequested[f])
+                return f;
+    }
+
+    return -1; // ništa nije traženo
+}
+
+
 
 void preprocessTexture(unsigned& texture, const char* filepath)
 {
@@ -48,8 +97,6 @@ void getMouseNDC(GLFWwindow* window, double& outX, double& outY)
     outX = (mx / width) * 2.0 - 1.0;
     outY = 1.0 - (my / height) * 2.0;
 }
-
-
 
 int main()
 {
@@ -109,8 +156,8 @@ int main()
     glEnableVertexAttribArray(0);
 
     // =============================
-   // RECTANGLE VAO/VBO (za desnu stranu)
-   // =============================
+    // RECTANGLE VAO/VBO (za desnu stranu)
+    // =============================
     float rectVerts[] = {
         -0.5f,  0.5f,
         -0.5f, -0.5f,
@@ -129,8 +176,9 @@ int main()
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-
-
+    // =============================
+    // VERTIKALNA LINIJA NA SREDINI
+    // =============================
     float lineVerts[] = {
         0.0f,  1.0f,   // gornja tačka
         0.0f, -1.0f    // donja tačka
@@ -147,10 +195,8 @@ int main()
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-
-
     // ---------------------------------------------------------
-    // TEXTURED QUAD
+    // TEXTURED QUAD (za karakter i dugmiće)
     // ---------------------------------------------------------
     float quadVerts[] = {
         -0.5f,  0.5f,   0.0f, 1.0f,
@@ -173,19 +219,35 @@ int main()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-
-    float rightBarVerts[] = {
-    0.85f,  1.0f,   // gore-levo
-    0.85f, -1.0f,   // dole-levo
-    1.0f, -1.0f,   // dole-desno
-    1.0f,  1.0f    // gore-desno
+    // ---------------------------------------------------------
+    // LIFT QUAD (0..1, 0..1) - koristi se sa lift shaderom
+    // ---------------------------------------------------------
+    float liftQuad[] = {
+        0.0f, 1.0f,   // gore-levo
+        0.0f, 0.0f,   // dole-levo
+        1.0f, 0.0f,   // dole-desno
+        1.0f, 1.0f    // gore-desno
     };
 
-    float liftVerts[] = {
-    0.85f, -0.25f,   // gore-levo
-    0.85f, -0.5f,    // dole-levo
-    1.0f,  -0.5f,    // dole-desno
-    1.0f,  -0.25f    // gore-desno
+    unsigned int liftVAO, liftVBO;
+    glGenVertexArrays(1, &liftVAO);
+    glGenBuffers(1, &liftVBO);
+
+    glBindVertexArray(liftVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, liftVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(liftQuad), liftQuad, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // ---------------------------------------------------------
+    // DESNI VERTIKALNI PANEL (0.85 → 1.0 po X)
+    // ---------------------------------------------------------
+    float rightBarVerts[] = {
+        0.85f,  1.0f,   // gore-levo
+        0.85f, -1.0f,   // dole-levo
+        1.0f,  -1.0f,   // dole-desno
+        1.0f,   1.0f    // gore-desno
     };
 
     // ---------------------------------------------------------
@@ -194,7 +256,7 @@ int main()
     unsigned int panelShader = createShader("color.vert", "color.frag");
     unsigned int textureShader = createShader("texture.vert", "texture.frag");
     unsigned int characterShader = createShader("character.vert", "character.frag");
-
+    unsigned int liftShader = createShader("lift.vert", "lift.frag");
 
     // ---------------------------------------------------------
     // LOAD TEXTURES NORMAL + SELECTED
@@ -204,7 +266,6 @@ int main()
     const int TEX_COUNT = 12;
     unsigned int textures[TEX_COUNT] = {};
     unsigned int selTextures[TEX_COUNT] = {};
-
 
     // normalne
     preprocessTexture(characterTex, "Resources/character.png");
@@ -236,8 +297,7 @@ int main()
     preprocessTexture(selTextures[11], "Resources/close_sel.png");
 
     // ---------------------------------------------------------
-    // GRID DIMENSIONS — 6 ROWS × 2 COLS
-    // koristimo iste granice kao panel
+    // GRID DIMENSIONS — 6 ROWS × 2 COLS (panel s dugmićima)
     // ---------------------------------------------------------
     float panelX = panelLeft;
     float panelY = panelBottom;
@@ -251,17 +311,13 @@ int main()
     float cellH = panelH / rows;
 
     // ---------------------------------------------------------
-    // MAIN LOOP
+    // DESNA STRANA (lift + osoba)
     // ---------------------------------------------------------
-
-
-
-// DESNA STRANA (lifit + osoba)
-    float rightMinX = -0.1f;   // tu počinje desna polovina
+    float rightMinX = -0.1f;
     float rightMaxX = 1.0f;
 
     // Character pozicija:
-    float personX = 0.2f;   // slobodno menjaj kasnije
+    float personX = 0.2f;
     float personY = -0.63f; // dno ekrana
 
     float personW = 0.15f;
@@ -270,6 +326,7 @@ int main()
     float uX = 0.0f;
     float uY = 0.0f;
 
+    // BOJE SPRATOVA
     float colors[8][3] = {
         {0.90f, 0.80f, 0.30f}, // Pikachu žuta (svetla)
         {0.88f, 0.65f, 0.28f}, // toplija žuto-narandžasta
@@ -281,180 +338,412 @@ int main()
         {0.50f, 0.15f, 0.22f}  // tamna bordo (najniži sprat)
     };
 
+    // ---------------------------------------------------------
+    // LIFT PARAMETRI (spratovi + kretanje)
+    // ---------------------------------------------------------
 
 
-   
-    while (!glfwWindowShouldClose(window))
+    int   liftFloor = 2;                     // trenutni sprat (0..7)
+    float liftY = -1.0f + liftFloor * FLOOR_H; // donja ivica lifta
+    float liftTargetY = liftY;
+    bool  liftMoving = false;
+    float liftSpeed = 0.001f;                 // TRAŽENA BRZINA
+
+    // VRATA
+    float doorY = 0.0f;              // od 0.0 (zatvoreno) do 1.0 (skroz podignuto)
+    bool doorOpening = false;
+    bool doorClosing = false;
+
+    double doorTimerStart = 0.0;     // vreme kada su se otvorila
+    bool doorOpen = false;
+
+
+    int floorMap[TEX_COUNT];
+    for (int i = 0; i < TEX_COUNT; i++)
+        floorMap[i] = -1;
+
+    // Tvoje mapiranje spratova:
+    floorMap[6] = 1;  // SU.png  → sprat 1
+    floorMap[7] = 2;  // PR.png  → sprat 2
+    floorMap[4] = 3;  // one.png → sprat 3
+    floorMap[5] = 4;  // two.png → sprat 4
+    floorMap[2] = 5;  // three.png → sprat 5
+    floorMap[3] = 6;  // four.png → sprat 6
+    floorMap[0] = 7;  // five.png → sprat 7
+    floorMap[1] = 8;  // six.png  → sprat 8
+
+    float prevLiftY = liftY; while (!glfwWindowShouldClose(window))
     {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             glfwSetWindowShouldClose(window, 1);
 
-        // CHARACTER INPUT
+        // --------------------------------
+        // INPUT – osoba levo/desno
+        // --------------------------------
         float speed = 0.001f;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) uX -= speed;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) uX += speed;
 
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            uX -= speed;
+        // --------------------------------
+        // 1) LIFT KRETANJE
+        // --------------------------------
+        if (liftMoving)
+        {
+            if (fabs(liftY - liftTargetY) < liftSpeed)
+            {
+                liftY = liftTargetY;
+                liftMoving = false;
 
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            uX += speed;
+                // Stigli → resetuj zahtev za ovaj sprat
+                floorRequested[liftFloor] = false;
 
-        // LIMIT REALNE POZICIJE NA 0 → 1
-        float realX = personX + uX;
-
-        if (realX < 0.0f)
-            uX = -personX;
-
-        if (realX > 1.0f)
-            uX = 1.0f - personX;
-
-
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // -------------------------------- PANEL ------------------------------
-        glUseProgram(panelShader);
-        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
-            0.65f, 0.65f, 0.65f, 1.0f);
-
-        glBindVertexArray(panelVAO);
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-        glUseProgram(panelShader);
-        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
-            0.0f, 0.0f, 0.0f, 1.0f);
-
-        glBindVertexArray(lineVAO);
-        glDrawArrays(GL_LINES, 0, 2);
-
-        // -------------------------------- MOUSE POS --------------------------
-        double mouseX, mouseY;
-        getMouseNDC(window, mouseX, mouseY);
-
-        // -------------------------------- GRID -------------------------------
-        glUseProgram(textureShader);
-        glBindVertexArray(quadVAO);
-        glUniform1i(glGetUniformLocation(textureShader, "tex"), 0);
-
-        bool mouseDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-
-        int idx = 0;
-        for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < cols; c++) {
-
-                if (idx >= TEX_COUNT) break;
-
-                float cx = panelX + cellW * (c + 0.5f);
-                float cy = panelY + panelH - cellH * (r + 0.5f);
-
-                float scaleX = cellW * 0.9f;
-                float scaleY = cellH * 0.9f;
-
-                glUniform2f(glGetUniformLocation(textureShader, "uCenter"), cx, cy);
-                glUniform2f(glGetUniformLocation(textureShader, "uScale"), scaleX, scaleY);
-
-                glActiveTexture(GL_TEXTURE0);
-
-                if (selectedIndex == idx && selTextures[idx] != 0)
-                    glBindTexture(GL_TEXTURE_2D, selTextures[idx]);
-                else
-                    glBindTexture(GL_TEXTURE_2D, textures[idx]);
-
-                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-                float minX = cx - scaleX * 0.5f;
-                float maxX = cx + scaleX * 0.5f;
-                float minY = cy - scaleY * 0.5f;
-                float maxY = cy + scaleY * 0.5f;
-
-                if (mouseDown && !mouseWasDown)
-                {
-                    if (mouseX >= minX && mouseX <= maxX &&
-                        mouseY >= minY && mouseY <= maxY)
-                    {
-                        selectedIndex = idx;
-                    }
-                }
-                idx++;
+                // OTVORI VRATA
+                doorOpening = true;
+                doorClosing = false;
+            }
+            else
+            {
+                liftY += (liftY < liftTargetY ? liftSpeed : -liftSpeed);
             }
         }
 
-        mouseWasDown = mouseDown;
+        // 2) delta lifta za osobu
+        float liftDeltaY = liftY - prevLiftY;
+        prevLiftY = liftY;
 
-        // ---------------------------------------------------------
-        // RENDER DESNE STRANE: CHARACTER + LIFT
-        // ---------------------------------------------------------
+        // 3) ako je osoba u liftu → prati lift
+        if (personHasEnteredLift)
+            personY += liftDeltaY;
 
-     // ===============================
-// =========================================
-// 8 pravougaonika desne strane (0 → 1 po X)
-// =========================================
-        glUseProgram(panelShader);
-        glBindVertexArray(rectVAO);
+        // 4) izračunaj realnu poziciju osobe
+        float realX = personX + uX;
+        float realY = personY + uY;
 
-        float slotH = 0.25f;
+        // 5) detekcija sprata osobe
+        int personFloor = (int)((realY + 1.0f) / FLOOR_H);
 
-        for (int i = 0; i < 8; i++)
+        if (personFloor < 0)
+            personFloor = 0;
+        else if (personFloor >= FLOOR_COUNT)
+            personFloor = FLOOR_COUNT - 1;
+
+
+        // 6) da li lift stoji na spratu osobe
+        bool liftAtPersonFloor = (!liftMoving && liftFloor == personFloor);
+
+        // 7) osoba ulazi (samo kad su vrata potpuno otvorena)
+        bool doorsFullyOpen = (doorY >= 1.0f);
+
+        if (!personHasEnteredLift &&
+            liftAtPersonFloor &&
+            doorsFullyOpen &&
+            realX >= 0.79f)
         {
-            float y1 = -1.0f + slotH * i;
-            float y2 = y1 + slotH;
+            personHasEnteredLift = true;
+        }
 
-            float verts[] = {
-                0.0f, y1,
-                0.0f, y2,
-                1.0f,  y2,
-                1.0f,  y1
-            };
+        // 7b) osoba izlazi – samo kad su vrata otvorena 100%
+        if (personHasEnteredLift)
+        {
+            if (doorsFullyOpen && realX < 0.79f)
+            {
+                personHasEnteredLift = false;
+            }
+            else if (!doorsFullyOpen && realX < 0.85f)
+            {
+                uX = 0.85f - personX; // blokiraj izlazak
+            }
+        }
 
-            glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+        // 8) ograničenje kretanja osobe
+        float maxX = personHasEnteredLift ? 1.0f : 0.80f;
+        if (realX < 0.0f) uX = -personX;
+        if (realX > maxX) uX = maxX - personX;
+        realX = personX + uX;
 
-            // BOJA — različita za svaki pravougaonik
-            glUniform4f(glGetUniformLocation(panelShader, "uColor"),
-                colors[i][0], colors[i][1], colors[i][2], 1.0f);
+        // --------------------------------
+        // 9) POZIV LIFTA spolja (C)
+        // --------------------------------
+        if (!personHasEnteredLift &&
+            realX >= 0.79f &&
+            glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS &&
+            !doorOpen && !doorOpening && !doorClosing)
+        {
+            floorRequested[personFloor] = true;
+        }
 
-            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+        // 10) VRATA – animacija
+        if (doorOpening)
+        {
+            doorY += 0.001f;
+            if (doorY >= 1.0f)
+            {
+                doorY = 1.0f;
+                doorOpening = false;
+
+                doorOpen = true;
+                doorTimerStart = glfwGetTime();  // ✔ TIMER START OVDE
+                extendedOnce = false;
+            }
         }
 
 
-        // VERTIKALNI PRAVOUGAONIK DESNO
-        glUseProgram(panelShader);
-        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
-            0.3f, 0.3f, 0.3f, 1.0f); // boja, promeni po želji
+        if (doorClosing)
+        {
+            doorY -= 0.001f;
+            if (doorY <= 0.0f)
+            {
+                doorY = 0.0f;
+                doorClosing = false;
+                doorOpen = false;
+            }
+        }
 
-        glBindVertexArray(rectVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(rightBarVerts), rightBarVerts);
-
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-
-        // LIFT RECTANGLE
-        glUseProgram(panelShader);
-        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
-            0.6f, 0.6f, 0.6f, 1.0f);  // boja lifta – svetlija siva
-
-        glBindVertexArray(rectVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(liftVerts), liftVerts);
-
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+        // automatsko zatvaranje nakon 5s otvorenih vrata
+        if (doorOpen && !doorOpening && !doorClosing)
+        {
+            double elapsed = glfwGetTime() - doorTimerStart;
+            if (elapsed >= 5.0)
+            {
+                doorClosing = true;
+            }
+        }
 
 
-        // Character
-// Character
-        glUseProgram(characterShader);
-        glUniform2f(glGetUniformLocation(characterShader, "uCenter"), personX, personY);
-        glUniform2f(glGetUniformLocation(characterShader, "uScale"), personW, personH);
-        glUniform2f(glGetUniformLocation(characterShader, "uOffset"), uX, uY);
-        glUniform1i(glGetUniformLocation(characterShader, "tex"), 0);
+        // --------------------------------
+        // 11) AKO LIFT STOJI I VRATA SU ZATVORENA → LOOK ALGORITAM
+        // --------------------------------
+        if (!liftMoving && !doorOpen && !doorOpening && !doorClosing)
+        {
+            int next = getNextFloorLOOK(liftFloor, liftDirection);
+            if (next != -1)
+            {
+                liftFloor = next;
+                liftTargetY = -1.0f + next * FLOOR_H;
+                liftMoving = true;
+            }
+        }
 
-        glBindVertexArray(quadVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, characterTex);
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    // --------------------------------
+    // RENDER POČINJE OVDE
+    // --------------------------------
+    glClear(GL_COLOR_BUFFER_BIT);
 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+    // PANEL LEVO
+    glUseProgram(panelShader);
+    glUniform4f(glGetUniformLocation(panelShader, "uColor"),
+        0.65f, 0.65f, 0.65f, 1.0f);
+
+    glBindVertexArray(panelVAO);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // SREDIŠNJA LINIJA
+    glUseProgram(panelShader);
+    glUniform4f(glGetUniformLocation(panelShader, "uColor"),
+        0.0f, 0.0f, 0.0f, 1.0f);
+
+    glBindVertexArray(lineVAO);
+    glDrawArrays(GL_LINES, 0, 2);
+
+    // -------------------------------- MOUSE POS --------------------------
+    double mouseX, mouseY;
+    getMouseNDC(window, mouseX, mouseY);
+
+    // -------------------------------- GRID (dugmići) --------------------
+    glUseProgram(textureShader);
+    glBindVertexArray(quadVAO);
+    glUniform1i(glGetUniformLocation(textureShader, "tex"), 0);
+
+    bool mouseDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+
+    int idx = 0;
+    for (int r = 0; r < rows; r++)
+    {
+        for (int c = 0; c < cols; c++)
+        {
+            if (idx >= TEX_COUNT) break;
+
+            float cx = panelX + cellW * (c + 0.5f);
+            float cy = panelY + panelH - cellH * (r + 0.5f);
+
+            float scaleX = cellW * 0.9f;
+            float scaleY = cellH * 0.9f;
+
+            glUniform2f(glGetUniformLocation(textureShader, "uCenter"), cx, cy);
+            glUniform2f(glGetUniformLocation(textureShader, "uScale"), scaleX, scaleY);
+
+            glActiveTexture(GL_TEXTURE0);
+
+            int f = floorMap[idx];
+            if (f != -1 && floorRequested[f - 1])
+                glBindTexture(GL_TEXTURE_2D, selTextures[idx]);  // dugme svetli jer je traženo
+            else
+                glBindTexture(GL_TEXTURE_2D, textures[idx]);
+
+
+            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+            float minX = cx - scaleX * 0.5f;
+            float maxX = cx + scaleX * 0.5f;
+            float minY = cy - scaleY * 0.5f;
+            float maxY = cy + scaleY * 0.5f;
+
+            if (mouseDown && !mouseWasDown)
+            {
+                if (personHasEnteredLift)
+                {
+                    // kliknut baš ovaj pravougaonik?
+                    bool inside =
+                        (mouseX >= minX && mouseX <= maxX &&
+                            mouseY >= minY && mouseY <= maxY);
+
+                    if (inside)
+                    {
+                        // SPRATOVI (dugmići 0..7)
+                        int f = floorMap[idx];
+                        if (f != -1)
+                        {
+                            floorRequested[f - 1] = true;
+                        }
+
+                        // OPEN dugme = idx 10
+                        if (idx == 10)
+                        {
+                            // vrata moraju biti potpuno otvorena i mirna
+                            if (doorOpen && !doorOpening && !doorClosing && !extendedOnce)
+                            {
+                                doorTimerStart = glfwGetTime(); // produži još 5 sekundi
+                                extendedOnce = true;
+                            }
+                        }
+
+                        // CLOSE dugme = idx 11
+                        if (idx == 11)
+                        {
+                            if (doorOpen && !doorOpening && !doorClosing)
+                            {
+                                doorClosing = true;
+                                // možeš da ostaviš doorOpen = true dok se ne zatvore,
+                                // ali ako ti je lakše za logiku, ostavi kao do sada:
+                                // doorOpen = false;
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            idx++;
+        }
     }
+
+    mouseWasDown = mouseDown;
+
+    // ---------------------------------------------------------
+    // RENDER DESNE STRANE
+    // ---------------------------------------------------------
+    glUseProgram(panelShader);
+    glBindVertexArray(rectVAO);
+
+    float slotH = 0.25f;
+
+    for (int i = 0; i < 8; i++)
+    {
+        float y1 = -1.0f + slotH * i;
+        float y2 = y1 + slotH;
+
+        float verts[] = {
+            0.0f, y1,
+            0.0f, y2,
+            0.85f, y2,
+            0.85f, y1
+        };
+
+        glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+
+        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
+            colors[i][0], colors[i][1], colors[i][2], 1.0f);
+
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    }
+
+
+
+    // DESNI PANEL
+    glUseProgram(panelShader);
+    glUniform4f(glGetUniformLocation(panelShader, "uColor"),
+        0.3f, 0.3f, 0.3f, 1.0f);
+
+    glBindVertexArray(rectVAO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(rightBarVerts), rightBarVerts);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // ---------------------------------------------------------
+    // LIFT
+    // ---------------------------------------------------------
+    glUseProgram(liftShader);
+
+    glUniform1f(glGetUniformLocation(liftShader, "uLeftX"), 0.85f);
+    glUniform1f(glGetUniformLocation(liftShader, "uRightX"), 1.0f);
+    glUniform1f(glGetUniformLocation(liftShader, "uBottomY"), liftY);
+    glUniform1f(glGetUniformLocation(liftShader, "uTopY"), liftY + FLOOR_H);
+
+    glUniform4f(glGetUniformLocation(liftShader, "uLiftColor"),
+        0.85f, 0.85f, 0.85f, 1.0f);
+
+    glBindVertexArray(liftVAO);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // ----- VRATA -----
+    glUseProgram(panelShader);
+
+    float doorLeft = 0.85f;
+    float doorRight = 0.87f;
+    float doorBottom = liftY;
+    float doorTop = liftY + FLOOR_H;
+
+    float currentTop = doorBottom + (doorTop - doorBottom) * (1.0f - doorY);
+
+    float doorVerts[] = {
+        doorLeft,  currentTop,
+        doorLeft,  doorBottom,
+        doorRight, doorBottom,
+        doorRight, currentTop
+    };
+
+    glBindVertexArray(rectVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(doorVerts), doorVerts);
+
+    glUniform4f(glGetUniformLocation(panelShader, "uColor"),
+        0.2f, 0.2f, 0.2f, 1.0f);
+
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // ---------------------------------------------------------
+    // CHARACTER
+    // ---------------------------------------------------------
+    glUseProgram(characterShader);
+
+    // (uLiftOffsetY ti sada realno ne treba, jer menjamo personY,
+    // ali ako ga koristiš, stavi 0)
+    glUniform1f(glGetUniformLocation(characterShader, "uLiftOffsetY"), 0.0f);
+
+    glUniform2f(glGetUniformLocation(characterShader, "uCenter"), personX, personY);
+    glUniform2f(glGetUniformLocation(characterShader, "uScale"), personW, personH);
+    glUniform2f(glGetUniformLocation(characterShader, "uOffset"), uX, uY);
+    glUniform1i(glGetUniformLocation(characterShader, "tex"), 0);
+
+    glBindVertexArray(quadVAO);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, characterTex);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+}
+
 
     glfwDestroyWindow(window);
     glfwTerminate();
