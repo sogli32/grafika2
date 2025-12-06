@@ -121,41 +121,23 @@ int main()
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    float liftVerts[] = {
-       0.85f, -0.80f,   // gore levo
-       0.85f, -0.99f,    // dole levo
-       1.0f,  -0.99f,    // dole desno
-       1.0f,  -0.80f    // gore desno
+    // =============================
+   // RECTANGLE VAO/VBO (za desnu stranu)
+   // =============================
+    float rectVerts[] = {
+        -0.5f,  0.5f,
+        -0.5f, -0.5f,
+         0.5f, -0.5f,
+         0.5f,  0.5f
     };
 
-    unsigned int liftVAO, liftVBO;
-    glGenVertexArrays(1, &liftVAO);
-    glGenBuffers(1, &liftVBO);
+    unsigned int rectVAO, rectVBO;
+    glGenVertexArrays(1, &rectVAO);
+    glGenBuffers(1, &rectVBO);
 
-    glBindVertexArray(liftVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, liftVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(liftVerts), liftVerts, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // ---------------------------------------------------------
-// DOOR VAO/VBO
-// ---------------------------------------------------------
-    unsigned int doorVAO, doorVBO;
-    glGenVertexArrays(1, &doorVAO);
-    glGenBuffers(1, &doorVBO);
-
-    glBindVertexArray(doorVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, doorVBO);
-    // inicijalno punjenje (dummy)
-    float doorVertsInit[] = {
-        0.85f, -0.80f,
-        0.85f, -0.99f,
-        1.0f,  -0.99f,
-        1.0f,  -0.80f
-    };
-    glBufferData(GL_ARRAY_BUFFER, sizeof(doorVertsInit), doorVertsInit, GL_DYNAMIC_DRAW);
+    glBindVertexArray(rectVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(rectVerts), rectVerts, GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
@@ -278,33 +260,28 @@ int main()
 
     // Character pozicija:
     float personX = 0.2f;   // slobodno menjaj kasnije
-    float personY = -0.90f; // dno ekrana
+    float personY = -0.88f; // dno ekrana
 
-    float personW = 0.12f;
-    float personH = 0.20f;
+    float personW = 0.15f;
+    float personH = 0.25f;
 
     float uX = 0.0f;
     float uY = 0.0f;
 
-    // LIFT DOORS
-    float doorY = -0.80f;        // trenutna pozicija gornje ivice vrata (zatvorena)
-    float doorTargetY = -0.80f;  // ciljana pozicija vrata
 
-    bool doorOpening = false;
-    bool doorClosing = false;
+    float colors[8][3] = {
+        {0.20f, 0.20f, 0.20f},   // tamna siva
+        {0.25f, 0.25f, 0.25f},
+        {0.30f, 0.30f, 0.30f},
+        {0.35f, 0.35f, 0.35f},
+        {0.40f, 0.40f, 0.40f},
+        {0.45f, 0.45f, 0.45f},
+        {0.50f, 0.50f, 0.50f},
+        {0.55f, 0.55f, 0.55f}    // svetlija siva
+    };
 
-    // index open dugmeta u tvojoj listi je textures[10]
-    const int OPEN_BUTTON = 10;
 
-
-    // ---------------------------------------------------------
-    // IZMENJEN LIFT — TAČNO OD 0.85 DO 1.0 PO X, I OD -1.0 DO -0.85 PO Y
-    // ---------------------------------------------------------
-    float liftX = (0.85f + 1.0f) * 0.5f;   // 0.925
-    float liftY = (-1.0f + -0.85f) * 0.5f; // -0.925
-    float liftW = (1.0f - 0.85f);          // 0.15
-    float liftH = 0.15f;                   // visina 0.15
-
+   
     while (!glfwWindowShouldClose(window))
     {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -318,41 +295,6 @@ int main()
 
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
             uX += speed;
-
-        // Ogranicenje kretanja
-        float realX = personX + uX;
-
-        // Ako je lik stigao do ivice lifta (0.85)
-        if (realX >= 0.85f)
-        {
-            // Ako je pritisnuto open dugme
-            if (selectedIndex == OPEN_BUTTON)
-            {
-                doorTargetY = -0.60f;   // vrati gore = otvaranje vrata
-                doorOpening = true;
-                doorClosing = false;
-            }
-        }
-        // Animacija otvaranja vrata lifta
-        if (doorOpening)
-        {
-            if (doorY < doorTargetY)
-                doorY += 0.002f;   // brzina otvaranja
-            else
-                doorOpening = false;
-        }
-
-
-        if (realX < 0.0f) {
-            realX = 0.0f;
-            uX = realX - personX;
-        }
-
-        if (realX > 1.0f) {
-            realX = 1.0f;
-            uX = realX - personX;
-        }
-
 
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -429,6 +371,39 @@ int main()
         // RENDER DESNE STRANE: CHARACTER + LIFT
         // ---------------------------------------------------------
 
+     // ===============================
+// =========================================
+// 8 pravougaonika desne strane (0 → 1 po X)
+// =========================================
+        glUseProgram(panelShader);
+        glBindVertexArray(rectVAO);
+
+        float slotH = 0.25f;
+
+        for (int i = 0; i < 8; i++)
+        {
+            float y1 = -1.0f + slotH * i;
+            float y2 = y1 + slotH;
+
+            float verts[] = {
+                0.0f, y1,
+                0.0f, y2,
+                1.0f,  y2,
+                1.0f,  y1
+            };
+
+            glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+
+            // BOJA — različita za svaki pravougaonik
+            glUniform4f(glGetUniformLocation(panelShader, "uColor"),
+                colors[i][0], colors[i][1], colors[i][2], 1.0f);
+
+            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+        }
+
+
+
 
         // Character
 // Character
@@ -442,42 +417,6 @@ int main()
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, characterTex);
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-        // ----- VRATA LIFTA -------
-
-// generišemo dinamične koordinate vrata
-       // UPDATE VRATA
-        float doorVerts[] = {
-            0.85f, doorY,
-            0.85f, -0.99f,
-            1.0f,  -0.99f,
-            1.0f,  doorY
-        };
-
-        glBindBuffer(GL_ARRAY_BUFFER, doorVBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(doorVerts), doorVerts);
-
-        bool isOpen = doorY > -0.78f; // prag kada smatramo da su vrata "otvorena"
-        float cabinShade = isOpen ? 0.45f : 0.15f;
-
-        glUseProgram(panelShader);
-        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
-            cabinShade, cabinShade, cabinShade, 1.0f);
-
-        glBindVertexArray(liftVAO);
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-
-        // Lift kabina — VAO sa fiksnim koordinatama
-
-        glUseProgram(panelShader);
-        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
-            0.15f, 0.15f, 0.15f, 1.0f);   // sivo
-
-        glBindVertexArray(liftVAO);
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-
 
         glfwSwapBuffers(window);
         glfwPollEvents();
