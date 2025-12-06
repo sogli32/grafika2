@@ -21,19 +21,6 @@ void preprocessTexture(unsigned& texture, const char* filepath)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
-void DrawRect(float cx, float cy, float w, float h, float r, float g, float b,
-    unsigned shader, unsigned vao)
-{
-    glUseProgram(shader);
-
-    glUniform4f(glGetUniformLocation(shader, "uColor"), r, g, b, 1.0f);
-    glUniform2f(glGetUniformLocation(shader, "uPos"), cx, cy);
-    glUniform2f(glGetUniformLocation(shader, "uSize"), w, h);
-
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-}
-
 
 void DrawTexture(float cx, float cy, float w, float h, unsigned tex, unsigned shader, unsigned vao)
 {
@@ -186,6 +173,21 @@ int main()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
+
+    float rightBarVerts[] = {
+    0.85f,  1.0f,   // gore-levo
+    0.85f, -1.0f,   // dole-levo
+    1.0f, -1.0f,   // dole-desno
+    1.0f,  1.0f    // gore-desno
+    };
+
+    float liftVerts[] = {
+    0.85f, -0.75f,   // gore-levo
+    0.85f, -1.0f,    // dole-levo
+    1.0f,  -1.0f,    // dole-desno
+    1.0f,  -0.75f    // gore-desno
+    };
+
     // ---------------------------------------------------------
     // SHADERS
     // ---------------------------------------------------------
@@ -296,6 +298,16 @@ int main()
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
             uX += speed;
 
+        // LIMIT REALNE POZICIJE NA 0 → 1
+        float realX = personX + uX;
+
+        if (realX < 0.0f)
+            uX = -personX;
+
+        if (realX > 1.0f)
+            uX = 1.0f - personX;
+
+
         glClear(GL_COLOR_BUFFER_BIT);
 
         // -------------------------------- PANEL ------------------------------
@@ -403,6 +415,28 @@ int main()
         }
 
 
+        // VERTIKALNI PRAVOUGAONIK DESNO
+        glUseProgram(panelShader);
+        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
+            0.3f, 0.3f, 0.3f, 1.0f); // boja, promeni po želji
+
+        glBindVertexArray(rectVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(rightBarVerts), rightBarVerts);
+
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+
+        // LIFT RECTANGLE
+        glUseProgram(panelShader);
+        glUniform4f(glGetUniformLocation(panelShader, "uColor"),
+            0.6f, 0.6f, 0.6f, 1.0f);  // boja lifta – svetlija siva
+
+        glBindVertexArray(rectVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, rectVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(liftVerts), liftVerts);
+
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
 
         // Character
