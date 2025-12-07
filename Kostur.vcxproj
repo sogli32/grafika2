@@ -132,15 +132,15 @@
     <ClInclude Include="Header\Util.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="character.frag" />
-    <None Include="character.vert" />
-    <None Include="color.frag" />
-    <None Include="color.vert" />
-    <None Include="lift.frag" />
-    <None Include="lift.vert" />
     <None Include="packages.config" />
-    <None Include="texture.frag" />
-    <None Include="texture.vert" />
+    <None Include="Shaders\character.frag" />
+    <None Include="Shaders\character.vert" />
+    <None Include="Shaders\color.frag" />
+    <None Include="Shaders\color.vert" />
+    <None Include="Shaders\lift.frag" />
+    <None Include="Shaders\lift.vert" />
+    <None Include="Shaders\texture.frag" />
+    <None Include="Shaders\texture.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -32,29 +32,13 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="texture.frag">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="texture.vert">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="color.frag">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="color.vert">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="character.frag">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="character.vert">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="lift.frag">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="lift.vert">
-      <Filter>Source Files</Filter>
-    </None>
+    <None Include="Shaders\character.frag" />
+    <None Include="Shaders\character.vert" />
+    <None Include="Shaders\color.frag" />
+    <None Include="Shaders\color.vert" />
+    <None Include="Shaders\lift.frag" />
+    <None Include="Shaders\lift.vert" />
+    <None Include="Shaders\texture.frag" />
+    <None Include="Shaders\texture.vert" />
   </ItemGroup>
 </Project>
