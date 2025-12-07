@@ -12,6 +12,9 @@ const float FLOOR_H = 0.25f; // visina sprata
 const int   FLOOR_COUNT = 8;
 bool facingLeft = false;
 
+const double TARGET_FPS = 75.0;
+const double TARGET_FRAME_TIME = 1.0 / TARGET_FPS;
+
 // LOOK queue — oznaka spratova koje treba posetiti
 bool floorRequested[FLOOR_COUNT] = { false };
 
@@ -114,7 +117,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
+    double frameStart = glfwGetTime();
     // FULLSCREEN
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();
     const GLFWvidmode* mode = glfwGetVideoMode(monitor);
@@ -269,20 +272,24 @@ int main()
     // ---------------------------------------------------------
     // SHADERS
     // ---------------------------------------------------------
-    unsigned int panelShader = createShader("color.vert", "color.frag");
-    unsigned int textureShader = createShader("texture.vert", "texture.frag");
-    unsigned int characterShader = createShader("character.vert", "character.frag");
-    unsigned int liftShader = createShader("lift.vert", "lift.frag");
+    unsigned int panelShader = createShader("Shaders/color.vert", "Shaders/color.frag");
+    unsigned int textureShader = createShader("Shaders/texture.vert", "Shaders/texture.frag");
+    unsigned int characterShader = createShader("Shaders/character.vert", "Shaders/character.frag");
+    unsigned int liftShader = createShader("Shaders/lift.vert", "Shaders/lift.frag");
 
     // ---------------------------------------------------------
     // LOAD TEXTURES NORMAL + SELECTED
     // ---------------------------------------------------------
     unsigned int characterTex = 0;
     unsigned int characterLeftTex = 0;
+    unsigned int labelTex = 0;
 
     const int TEX_COUNT = 12;
     unsigned int textures[TEX_COUNT] = {};
     unsigned int selTextures[TEX_COUNT] = {};
+
+    
+    preprocessTexture(labelTex, "Resources/label.png");
 
     // normalne
     preprocessTexture(characterTex, "Resources/character.png");
@@ -490,6 +497,18 @@ int main()
                 uX = 0.85f - personX; // blokiraj izlazak
             }
         }
+        // 7c) ograniči osobu da ne ide levo kroz vrata kada nisu potpuno otvorena
+        float doorBoundaryX = 0.85f + 0.05f; // 0.05 unutra od vrata = 0.90
+
+        if (personHasEnteredLift && !doorsFullyOpen)
+        {
+            if (realX < doorBoundaryX)
+            {
+                uX = doorBoundaryX - personX;  // gurni ga nazad desno
+                realX = doorBoundaryX;
+            }
+        }
+
         // 8) ograničenje kretanja osobe
         float minX = 0.05f;                             // ✔ pomerena ivica udesno
         float maxX = personHasEnteredLift ? 0.95f : 0.80f;
@@ -506,7 +525,7 @@ int main()
 
         // 9) POZIV LIFTA spolja (C)
         if (!personHasEnteredLift &&
-            realX >= 0.79f &&
+            realX >= 0.80f &&
             glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
         {
             floorRequested[personFloor] = true;   // registruj poziv
@@ -802,11 +821,38 @@ int main()
         glfwSetCursor(window, ventCursorBlack); // ← Umesto ventCursorBlack
     }
 
+    glUseProgram(textureShader);
+    glBindVertexArray(quadVAO);
+    glUniform1i(glGetUniformLocation(textureShader, "tex"), 0);
+
+    // recimo u gornji levi ugao
+    float labelCenterX = -0.85f;   // pomeri po želji
+    float labelCenterY = -0.95f;
+    float labelW = 0.3f;           // širina pravougaonika
+    float labelH = 0.1f;          // visina
+
+    glUniform2f(glGetUniformLocation(textureShader, "uCenter"), labelCenterX, labelCenterY);
+    glUniform2f(glGetUniformLocation(textureShader, "uScale"), labelW, labelH);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, labelTex);
+
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+
 
     glfwSwapBuffers(window);
     glfwPollEvents();
-}
 
+    double frameEnd = glfwGetTime();
+    double frameTime = frameEnd - frameStart;
+
+    if (frameTime < TARGET_FRAME_TIME)
+    {
+        // prosta busy-wait varijanta (dovoljna za projekat)
+        while (glfwGetTime() - frameStart < TARGET_FRAME_TIME) {}
+    }
+}
 
     glfwDestroyWindow(window);
     glfwTerminate();
