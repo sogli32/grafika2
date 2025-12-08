@@ -11,8 +11,6 @@ void main()
 {
     vec2 pos = aPos;
 
-    // aPos je (0,0), (0,1), (1,1), (1,0)
-    // mi ga mapiramo na pravougaonik
     float x = mix(uLeftX, uRightX, pos.x);
     float y = mix(uBottomY, uTopY, pos.y);
 

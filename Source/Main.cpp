@@ -1,12 +1,10 @@
 ﻿#include <GL/glew.h>
 #include <GLFW/glfw3.h>
-
 #include "../Header/Util.h"
 #include <cstdio>
 #include <vector>
 #include <algorithm>
 
-std::vector<int> floorQueue;   // lista selektovanih spratova (0..7)
 
 const float FLOOR_H = 0.25f; // visina sprata
 const int   FLOOR_COUNT = 8;
@@ -29,11 +27,7 @@ bool cursorLocked = false;
 // Smer lifta: 1 nagore, -1 nadole
 int liftDirection = 1;
 bool extendedOnce = false;
-
-
-int selectedIndex = -1;
 bool mouseWasDown = false; // bolja detekcija klika
-bool personInLift = false;
 bool personHasEnteredLift = false;
 int getNextFloorLOOK(int currentFloor, int& dir)
 {
@@ -84,21 +78,6 @@ void preprocessTexture(unsigned& texture, const char* filepath)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
-void DrawTexture(float cx, float cy, float w, float h, unsigned tex, unsigned shader, unsigned vao)
-{
-    glUseProgram(shader);
-
-    glUniform2f(glGetUniformLocation(shader, "uCenter"), cx, cy);
-    glUniform2f(glGetUniformLocation(shader, "uScale"), w, h);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-}
-
-
 void getMouseNDC(GLFWwindow* window, double& outX, double& outY)
 {
     double mx, my;
@@ -117,7 +96,6 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    double frameStart = glfwGetTime();
     // FULLSCREEN
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();
     const GLFWvidmode* mode = glfwGetVideoMode(monitor);
@@ -336,12 +314,6 @@ int main()
     float cellW = panelW / cols;
     float cellH = panelH / rows;
 
-    // ---------------------------------------------------------
-    // DESNA STRANA (lift + osoba)
-    // ---------------------------------------------------------
-    float rightMinX = -0.1f;
-    float rightMaxX = 1.0f;
-
     // Character pozicija:
     float personX = 0.2f;
     float personY = -0.63f; // dno ekrana
@@ -373,7 +345,7 @@ int main()
     float liftY = -1.0f + liftFloor * FLOOR_H; // donja ivica lifta
     float liftTargetY = liftY;
     bool  liftMoving = false;
-    float liftSpeed = 0.001f;                 // TRAŽENA BRZINA
+    float liftSpeed = 0.008f;                 // TRAŽENA BRZINA
 
     // VRATA
     float doorY = 0.0f;              // od 0.0 (zatvoreno) do 1.0 (skroz podignuto)
@@ -398,15 +370,18 @@ int main()
     floorMap[0] = 7;  // five.png → sprat 7
     floorMap[1] = 8;  // six.png  → sprat 8
 
-    float prevLiftY = liftY; while (!glfwWindowShouldClose(window))
+    float prevLiftY = liftY;
+    
+    while (!glfwWindowShouldClose(window))
     {
+        double frameStart = glfwGetTime();
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             glfwSetWindowShouldClose(window, 1);
 
         // --------------------------------
         // INPUT – osoba levo/desno
         // --------------------------------
-        float speed = 0.001f;
+        float speed = 0.006f;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
             uX -= speed;
             facingLeft = true;
@@ -535,7 +510,7 @@ int main()
         // 10) VRATA – animacija
         if (doorOpening)
         {
-            doorY += 0.001f;
+            doorY += 0.008f;
             if (doorY >= 1.0f)
             {
                 doorY = 1.0f;
@@ -550,7 +525,7 @@ int main()
 
         if (doorClosing)
         {
-            doorY -= 0.001f;
+            doorY -= 0.008f;
             if (doorY <= 0.0f)
             {
                 doorY = 0.0f;
@@ -853,7 +828,6 @@ int main()
         while (glfwGetTime() - frameStart < TARGET_FRAME_TIME) {}
     }
 }
-
     glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
